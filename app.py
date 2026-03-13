@@ -41,3 +41,11 @@ if prompt:
 
     with st.chat_message("assistant"):
         st.write(answer)
+
+from transformers import pipeline
+
+generator = pipeline(
+    "text-generation",
+    model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    token=st.secrets["HF_TOKEN"]
+)
