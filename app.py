@@ -1,30 +1,25 @@
 import streamlit as st
 from transformers import pipeline
 
-st.set_page_config(page_title="ChatGPT Clone")
-
-st.title("🤖 Local LLM Chatbot")
+st.title("🤖 ChatGPT Style AI (No API Key)")
 
 @st.cache_resource
 def load_model():
-    model = pipeline(
+    generator = pipeline(
         "text-generation",
         model="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     )
-    return model
+    return generator
 
-llm = load_model()
+model = load_model()
 
-# chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# show previous messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# user input
 prompt = st.chat_input("Ask something")
 
 if prompt:
@@ -36,7 +31,7 @@ if prompt:
     with st.chat_message("user"):
         st.write(prompt)
 
-    result = llm(prompt, max_new_tokens=120)
+    result = model(prompt, max_new_tokens=100)
 
     answer = result[0]["generated_text"]
 
