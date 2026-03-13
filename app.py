@@ -1,16 +1,48 @@
 import streamlit as st
-from openai import OpenAI
+from transformers import pipeline
 
-client = OpenAI(api_key="AIzaSyDFN-L5LZ1uLJ5ohts3x5hn0uf9kZ2TrdE")
+st.set_page_config(page_title="ChatGPT Clone")
 
-st.title("My AI Assistant")
+st.title("🤖 Local LLM Chatbot")
 
-user_input = st.text_input("Ask anything")
+@st.cache_resource
+def load_model():
+    model = pipeline(
+        "text-generation",
+        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    )
+    return model
 
-if user_input:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role":"user","content":user_input}]
+llm = load_model()
+
+# chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# show previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+
+# user input
+prompt = st.chat_input("Ask something")
+
+if prompt:
+
+    st.session_state.messages.append(
+        {"role": "user", "content": prompt}
     )
 
-    st.write(response.choices[0].message.content)
+    with st.chat_message("user"):
+        st.write(prompt)
+
+    result = llm(prompt, max_new_tokens=120)
+
+    answer = result[0]["generated_text"]
+
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer}
+    )
+
+    with st.chat_message("assistant"):
+        st.write(answer)
