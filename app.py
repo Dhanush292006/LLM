@@ -1,25 +1,24 @@
 import streamlit as st
-import pandas as pd
 import google.generativeai as genai
+import pandas as pd
 from pypdf import PdfReader
 
-# Page config
-st.set_page_config(page_title="Gemini Chat Assistant", layout="wide")
+st.set_page_config(page_title="AI Chat", layout="wide")
 
-st.title("🤖 Gemini Chat Assistant")
+st.title("🤖 AI Chat Assistant")
 
 # =========================
-# API KEY INPUT
+# API KEY
 # =========================
 
-api_key = st.text_input("Enter Gemini API Key", type="password")
+api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
 
 if api_key:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-1.5-flash")
 
 # =========================
-# CHAT HISTORY
+# SESSION MEMORY
 # =========================
 
 if "messages" not in st.session_state:
@@ -36,24 +35,20 @@ uploaded_file = st.sidebar.file_uploader(
     type=["csv","txt","pdf"]
 )
 
-file_data = ""
+file_text = ""
 
 if uploaded_file:
 
     if uploaded_file.name.endswith(".csv"):
 
         df = pd.read_csv(uploaded_file)
+        file_text = df.to_string()
 
-        file_data = df.to_string()
-
-        st.sidebar.write("Dataset Preview")
         st.sidebar.dataframe(df.head())
-
 
     elif uploaded_file.name.endswith(".txt"):
 
-        file_data = uploaded_file.read().decode()
-
+        file_text = uploaded_file.read().decode()
 
     elif uploaded_file.name.endswith(".pdf"):
 
@@ -61,27 +56,25 @@ if uploaded_file:
 
         for page in reader.pages:
 
-            text = page.extract_text()
+            txt = page.extract_text()
 
-            if text:
-                file_data += text
-
+            if txt:
+                file_text += txt
 
 # =========================
 # SHOW CHAT HISTORY
 # =========================
 
-for msg in st.session_state.messages:
+for message in st.session_state.messages:
 
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
 # =========================
 # CHAT INPUT
 # =========================
 
-prompt = st.chat_input("Ask something...")
+prompt = st.chat_input("Send a message...")
 
 if prompt:
 
@@ -98,13 +91,13 @@ if prompt:
 
     else:
 
-        if file_data != "":
+        if file_text != "":
 
             query = f"""
-Use the following file data to answer if possible.
+Use the following data to answer if possible.
 
-FILE DATA:
-{file_data}
+DATA:
+{file_text}
 
 Question:
 {prompt}
