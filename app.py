@@ -70,6 +70,7 @@ if prompt:
     else:
         system_prompt = "You are a helpful AI assistant."
 
+    try:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -80,9 +81,7 @@ if prompt:
 
     reply = response.choices[0].message.content
 
-    with st.chat_message("assistant"):
-        st.markdown(reply)
+except Exception as e:
+    reply = "⚠️ API quota exceeded or API key problem."
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": reply}
-    )
+st.write(reply)
