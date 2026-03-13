@@ -1,7 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 
-client = OpenAI(api_key="AIzaSyD4ATJfp6fHEPyDjOZWurs--09eEzOhH2o")
+client = OpenAI(api_key="AIzaSyDFN-L5LZ1uLJ5ohts3x5hn0uf9kZ2TrdE")
 
 st.title("My AI Assistant")
 
