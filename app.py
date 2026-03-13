@@ -1,16 +1,16 @@
 import streamlit as st
-import pandas as pd
-from transformers import pipeline
+from openai import OpenAI
 
-st.title("CSV Chatbot")
+client = OpenAI(api_key="AIzaSyD4ATJfp6fHEPyDjOZWurs--09eEzOhH2o")
 
-# Load CSV
-df = pd.read_csv("dataset.csv")
+st.title("My AI Assistant")
 
-chatbot = pipeline("text-generation", model="gpt2")
+user_input = st.text_input("Ask anything")
 
-question = st.text_input("Ask a question")
+if user_input:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role":"user","content":user_input}]
+    )
 
-if question:
-    response = chatbot(question, max_length=50)
-    st.write(response[0]["generated_text"])
+    st.write(response.choices[0].message.content)
