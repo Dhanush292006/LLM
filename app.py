@@ -1,105 +1,49 @@
-import streamlit as st
-from openai import OpenAI
-import pandas as pd
-from pypdf import PdfReader
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-st.set_page_config(page_title="ChatGPT Clone", layout="wide")
+# Load model and tokenizer
+model_name = "microsoft/DialoGPT-medium"
 
-st.title("🤖 ChatGPT File Assistant")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
-# API key input
-api_key = st.text_input("Enter OpenAI API Key", type="password")
+print("AI Chatbot Ready! Type 'exit' to stop.\n")
 
-client = None
-if api_key:
-    client = OpenAI(api_key=api_key)
+# Chat history
+chat_history_ids = None
 
-# Chat memory
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+while True:
 
-# Sidebar file upload
-st.sidebar.title("Upload File")
+    user_input = input("You: ")
 
-uploaded_file = st.sidebar.file_uploader(
-    "Upload CSV / TXT / PDF",
-    type=["csv", "txt", "pdf"]
-)
+    if user_input.lower() == "exit":
+        print("Chat ended.")
+        break
 
-file_data = ""
-
-if uploaded_file:
-
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-        file_data = df.to_string()
-        st.sidebar.write("Dataset Preview")
-        st.sidebar.dataframe(df.head())
-
-    elif uploaded_file.name.endswith(".txt"):
-        file_data = uploaded_file.read().decode()
-
-    elif uploaded_file.name.endswith(".pdf"):
-        reader = PdfReader(uploaded_file)
-
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                file_data += text
-
-
-# Display chat history
-for msg in st.session_state.messages:
-
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-
-# Chat input
-prompt = st.chat_input("Ask something...")
-
-if prompt:
-
-    st.session_state.messages.append({"role": "user", "content": prompt})
-
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    if client is None:
-        reply = "⚠️ Please enter your OpenAI API key first."
-
-    else:
-
-        if file_data != "":
-            system_prompt = f"""
-            Answer using the uploaded file data if possible.
-
-            FILE DATA:
-            {file_data}
-            """
-        else:
-            system_prompt = "You are a helpful AI assistant."
-
-        try:
-
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            reply = response.choices[0].message.content
-
-        except Exception as e:
-
-            reply = "⚠️ API error or quota exceeded. Please check OpenAI billing."
-
-
-    with st.chat_message("assistant"):
-        st.markdown(reply)
-
-    st.session_state.messages.append(
-        {"role": "assistant", "content": reply}
+    # Encode user input
+    new_input_ids = tokenizer.encode(
+        user_input + tokenizer.eos_token,
+        return_tensors="pt"
     )
+
+    # Append to chat history
+    bot_input_ids = (
+        torch.cat([chat_history_ids, new_input_ids], dim=-1)
+        if chat_history_ids is not None
+        else new_input_ids
+    )
+
+    # Generate response
+    chat_history_ids = model.generate(
+        bot_input_ids,
+        max_length=1000,
+        pad_token_id=tokenizer.eos_token_id
+    )
+
+    # Decode response
+    response = tokenizer.decode(
+        chat_history_ids[:, bot_input_ids.shape[-1]:][0],
+        skip_special_tokens=True
+    )
+
+    print("AI:", response)
