@@ -4,11 +4,12 @@ from transformers import pipeline
 
 st.title("CSV Chatbot")
 
-df = pd.read_csv("GPT DATA COLLECTION(Sheet1).csv")
+# Load CSV
+df = pd.read_csv("dataset.csv")
 
 chatbot = pipeline("text-generation", model="gpt2")
 
-question = st.text_input("Ask something")
+question = st.text_input("Ask a question")
 
 if question:
     response = chatbot(question, max_length=50)
