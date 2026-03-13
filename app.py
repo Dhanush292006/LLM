@@ -3,106 +3,110 @@ import google.generativeai as genai
 import pandas as pd
 from pypdf import PdfReader
 
-# =========================
-# 1. PAGE CONFIGURATION
-# =========================
-st.set_page_config(page_title="Gemini File Assistant", layout="wide", page_icon="♊")
+# ==========================================
+# 1. PAGE SETUP & UI
+# ==========================================
+st.set_page_config(page_title="Gemini AI Assistant", layout="wide", page_icon="♊")
 
 st.title("♊ Gemini File Assistant")
-st.markdown("Upload a file and ask questions about its content using Google Gemini.")
+st.info("Upload a document (PDF, TXT, or CSV) and chat with Gemini about it.")
 
-# =========================
-# 2. API KEY SETUP
-# =========================
-# Sidebar for API Key to keep the main area clean
+# ==========================================
+# 2. SIDEBAR: API KEY & FILE UPLOAD
+# ==========================================
 with st.sidebar:
-    st.title("Settings ⚙️")
-    api_key = st.text_input("Enter Google API Key", type="password", help="Get your key from https://aistudio.google.com/")
+    st.header("Configuration")
+    
+    # Secure API Key Input
+    api_key = st.text_input("AIzaSyD4ATJfp6fHEPyDjOZWurs--09eEzOhH2o", type="password")
     
     if api_key:
         genai.configure(api_key=api_key)
-        # Using gemini-1.5-flash for high speed and large context window
+        # Using Gemini 1.5 Flash for speed and massive context window
         model = genai.GenerativeModel('gemini-1.5-flash')
     else:
         model = None
-        st.info("🔑 Please enter your API key to enable the chat.")
+        st.warning("🔑 Please enter an API Key to start.")
 
-# =========================
-# 3. SESSION STATE (Memory)
-# =========================
+    st.divider()
+    
+    # File Uploader
+    st.header("Upload Data")
+    uploaded_file = st.sidebar.file_uploader(
+        "Choose a file", 
+        type=["csv", "txt", "pdf"]
+    )
+
+# ==========================================
+# 3. FILE PROCESSING LOGIC
+# ==========================================
+file_content = ""
+
+if uploaded_file:
+    with st.spinner("Reading file..."):
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file)
+                file_content = df.to_string()
+                st.sidebar.success("CSV Loaded!")
+                st.sidebar.dataframe(df.head(3))
+
+            elif uploaded_file.name.endswith(".txt"):
+                file_content = uploaded_file.read().decode("utf-8")
+                st.sidebar.success("Text Loaded!")
+
+            elif uploaded_file.name.endswith(".pdf"):
+                reader = PdfReader(uploaded_file)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        file_content += text
+                st.sidebar.success("PDF Loaded!")
+        except Exception as e:
+            st.sidebar.error(f"Error reading file: {e}")
+
+# ==========================================
+# 4. CHAT HISTORY & SESSION STATE
+# ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# =========================
-# 4. FILE UPLOAD & PROCESSING
-# =========================
-st.sidebar.divider()
-st.sidebar.title("Upload File 📄")
-uploaded_file = st.sidebar.file_uploader(
-    "Support: CSV, TXT, PDF",
-    type=["csv", "txt", "pdf"]
-)
+# Display previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# Variable to hold all extracted text
-file_context = ""
-
-if uploaded_file:
-    with st.spinner("Processing file..."):
-        if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-            file_context = df.to_string()
-            st.sidebar.write("✅ CSV Loaded")
-            st.sidebar.dataframe(df.head(5))
-
-        elif uploaded_file.name.endswith(".txt"):
-            file_context = uploaded_file.read().decode()
-            st.sidebar.write("✅ Text Loaded")
-
-        elif uploaded_file.name.endswith(".pdf"):
-            reader = PdfReader(uploaded_file)
-            for page in reader.pages:
-                text = page.extract_text()
-                if text:
-                    file_context += text
-            st.sidebar.write("✅ PDF Loaded")
-
-# =========================
-# 5. CHAT INTERFACE
-# =========================
-
-# Display chat history
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# Chat input
-prompt = st.chat_input("Ask a question about your file...")
-
-if prompt:
-    # 1. Add user message to state and UI
+# ==========================================
+# 5. CHAT INPUT & AI RESPONSE
+# ==========================================
+if prompt := st.chat_input("Ask me anything about the file..."):
+    
+    # Display user message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Generate response
-    if model is None:
-        reply = "⚠️ API Key is missing. Please provide it in the sidebar."
-    else:
-        with st.chat_message("assistant"):
+    # Generate Assistant response
+    with st.chat_message("assistant"):
+        if not model:
+            response_text = "⚠️ Please provide a valid Google API Key in the sidebar."
+            st.error(response_text)
+        else:
             try:
-                # Combine file context with the user's prompt
-                if file_context:
-                    full_query = f"Context from uploaded file:\n{file_context}\n\nUser Question: {prompt}"
+                # Prepare context
+                if file_content:
+                    full_prompt = f"System: Use the following file data to answer the user.\n\nFile Data:\n{file_content}\n\nUser Question: {prompt}"
                 else:
-                    full_query = prompt
-
-                response = model.generate_content(full_query)
-                reply = response.text
-                st.markdown(reply)
+                    full_prompt = prompt
+                
+                # Call Gemini
+                response = model.generate_content(full_prompt)
+                response_text = response.text
+                st.markdown(response_text)
                 
             except Exception as e:
-                reply = f"❌ Error: {str(e)}"
-                st.error(reply)
+                response_text = f"❌ API Error: {str(e)}"
+                st.error(response_text)
 
-    # 3. Add assistant reply to history
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+    # Save assistant response to history
+    st.session_state.messages.append({"role": "assistant", "content": response_text})
