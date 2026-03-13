@@ -1,125 +1,105 @@
 import streamlit as st
-import google.generativeai as genai
+from openai import OpenAI
 import pandas as pd
 from pypdf import PdfReader
 
-st.set_page_config(page_title="AI Chat", layout="wide")
+st.set_page_config(page_title="ChatGPT Clone", layout="wide")
 
-st.title("🤖 AI Chat Assistant")
+st.title("🤖 ChatGPT File Assistant")
 
-# =========================
-# API KEY
-# =========================
+# API key input
+api_key = st.text_input("Enter OpenAI API Key", type="password")
 
-api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
-
+client = None
 if api_key:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = OpenAI(api_key=api_key)
 
-# =========================
-# SESSION MEMORY
-# =========================
-
+# Chat memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# =========================
-# FILE UPLOAD
-# =========================
-
+# Sidebar file upload
 st.sidebar.title("Upload File")
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload CSV / TXT / PDF",
-    type=["csv","txt","pdf"]
+    type=["csv", "txt", "pdf"]
 )
 
-file_text = ""
+file_data = ""
 
 if uploaded_file:
 
     if uploaded_file.name.endswith(".csv"):
-
         df = pd.read_csv(uploaded_file)
-        file_text = df.to_string()
-
+        file_data = df.to_string()
+        st.sidebar.write("Dataset Preview")
         st.sidebar.dataframe(df.head())
 
     elif uploaded_file.name.endswith(".txt"):
-
-        file_text = uploaded_file.read().decode()
+        file_data = uploaded_file.read().decode()
 
     elif uploaded_file.name.endswith(".pdf"):
-
         reader = PdfReader(uploaded_file)
 
         for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                file_data += text
 
-            txt = page.extract_text()
 
-            if txt:
-                file_text += txt
+# Display chat history
+for msg in st.session_state.messages:
 
-# =========================
-# SHOW CHAT HISTORY
-# =========================
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# =========================
-# CHAT INPUT
-# =========================
-
-prompt = st.chat_input("Send a message...")
+# Chat input
+prompt = st.chat_input("Ask something...")
 
 if prompt:
 
-    st.session_state.messages.append(
-        {"role":"user","content":prompt}
-    )
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    if not api_key:
-
-        reply = "⚠️ Please enter Gemini API key."
+    if client is None:
+        reply = "⚠️ Please enter your OpenAI API key first."
 
     else:
 
-        if file_text != "":
+        if file_data != "":
+            system_prompt = f"""
+            Answer using the uploaded file data if possible.
 
-            query = f"""
-Use the following data to answer if possible.
-
-DATA:
-{file_text}
-
-Question:
-{prompt}
-"""
-
+            FILE DATA:
+            {file_data}
+            """
         else:
-
-            query = prompt
+            system_prompt = "You are a helpful AI assistant."
 
         try:
 
-            response = model.generate_content(query)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ]
+            )
 
-            reply = response.text
+            reply = response.choices[0].message.content
 
-        except:
+        except Exception as e:
 
-            reply = "⚠️ Error generating response."
+            reply = "⚠️ API error or quota exceeded. Please check OpenAI billing."
+
 
     with st.chat_message("assistant"):
         st.markdown(reply)
 
     st.session_state.messages.append(
-        {"role":"assistant","content":reply}
+        {"role": "assistant", "content": reply}
     )
